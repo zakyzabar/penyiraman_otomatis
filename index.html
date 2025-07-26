@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Monitoring Kelembapan Tanah</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #e8f5e9;
+      padding: 40px;
+    }
+    h1 {
+      color: #2e7d32;
+    }
+    .data-box {
+      background-color: #ffffff;
+      border-radius: 10px;
+      padding: 20px;
+      display: inline-block;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      margin-top: 20px;
+    }
+    .value {
+      font-size: 2em;
+      margin: 10px 0;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      margin: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .on { background-color: #4caf50; color: white; }
+    .off { background-color: #f44336; color: white; }
+
+    #mqttStatus {
+      margin-top: 15px;
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .connected {
+      background-color: #c8e6c9;
+      color: #2e7d32;
+    }
+    .disconnected {
+      background-color: #ffcdd2;
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Monitoring Kelembapan Tanah</h1>
+
+  <div id="mqttStatus" class="disconnected">🔌 Belum terhubung ke MQTT...</div>
+
+  <div class="data-box">
+    <div><strong>Kelembapan Tanah:</strong></div>
+    <div class="value" id="moistureValue">--</div>
+
+    <div><strong>Status Pompa:</strong></div>
+    <div class="value" id="pumpStatus">--</div>
+
+    <button class="on" onclick="controlPump('ON')">Pompa ON</button>
+    <button class="off" onclick="controlPump('OFF')">Pompa OFF</button>
+  </div>
+
+  <script>
+    const client = mqtt.connect("wss://broker.hivemq.com:8000/mqtt");
+    const topic = "sensor/soil/data";
+
+    const statusDiv = document.getElementById("mqttStatus");
+
+    client.on("connect", () => {
+      console.log("Terhubung ke broker MQTT");
+      client.subscribe(topic, err => {
+        if (!err) {
+          console.log("Berlangganan ke:", topic);
+        }
+      });
+      statusDiv.textContent = "✅ Terhubung ke MQTT";
+      statusDiv.className = "connected";
+    });
+
+    client.on("reconnect", () => {
+      console.log("Mencoba reconnect...");
+      statusDiv.textContent = "♻️ Mencoba reconnect ke MQTT...";
+      statusDiv.className = "disconnected";
+    });
+
+    client.on("offline", () => {
+      console.log("MQTT Offline");
+      statusDiv.textContent = "⚠️ Koneksi MQTT terputus";
+      statusDiv.className = "disconnected";
+    });
+
+    client.on("error", (err) => {
+      console.error("MQTT Error:", err);
+      statusDiv.textContent = "❌ Gagal terhubung ke MQTT";
+      statusDiv.className = "disconnected";
+    });
+
+    client.on("message", (topic, message) => {
+      console.log("Pesan diterima:", message.toString());
+
+      try {
+        const data = JSON.parse(message.toString());
+        document.getElementById("moistureValue").textContent = data.moisture;
+        document.getElementById("pumpStatus").textContent = data.pompa;
+      } catch (err) {
+        console.error("Format JSON tidak valid:", err);
+      }
+    });
+
+    function controlPump(command) {
+      client.publish(topic, command);
+      console.log("Kirim perintah:", command);
+    }
+  </script>
+
+</body>
+</html>
